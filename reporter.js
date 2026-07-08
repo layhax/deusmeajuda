@@ -11,8 +11,32 @@ const COOKIES_PATH = path.join(PROFILE_DIR, 'cookies.json');
 
 async function loadCookies(page) {
   try {
-    if (!fs.existsSync(COOKIES_PATH)) return false;
-    const cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf8'));
+    let cookies = [];
+    if (fs.existsSync(COOKIES_PATH)) {
+      try {
+        cookies = JSON.parse(fs.readFileSync(COOKIES_PATH, 'utf8')) || [];
+      } catch (e) {
+        console.warn('[Puppeteer] cookies.json inválido, ignorando arquivo:', e.message);
+        cookies = [];
+      }
+    }
+
+    // If CF_CLEARANCE is provided via env, ensure it's present in the cookie list
+    const envCf = process.env.CF_CLEARANCE;
+    const hasCfInFile = cookies.find((c) => c && c.name === 'cf_clearance');
+    if (envCf && !hasCfInFile) {
+      cookies.push({
+        name: 'cf_clearance',
+        value: envCf,
+        domain: 'forum.mush.com.br',
+        path: '/',
+        secure: true,
+        httpOnly: false,
+        sameSite: 'Lax',
+      });
+      console.log('[Puppeteer] cf_clearance injetado a partir de CF_CLEARANCE env');
+    }
+
     if (!cookies.length) return false;
     await page.setCookie(...cookies);
     return true;
