@@ -89,7 +89,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const reportData = {};
       let step = 'type';
 
-      const introMsg = await interaction.reply('Qual o tipo de denúncia? Responda com `hacker` ou `geral`.');
+      let introMsg;
+      try {
+        introMsg = await interaction.reply('Qual o tipo de denúncia? Responda com `hacker` ou `geral`.');
+      } catch (err) {
+        console.warn('[Interaction] reply falhou, usando channel.send como fallback:', err.message);
+        introMsg = await channel.send('Qual o tipo de denúncia? Responda com `hacker` ou `geral`.');
+      }
 
       collector.on('collect', async (msg) => {
         // Guardar mensagens do usuário para excluir depois
@@ -246,13 +252,37 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const thinkingMsg = await originalChannel.send('Felipe: Quebrando códigos...');
             await btnInteraction.reply('Publicando denúncia no fórum, aguarde...');
             try {
-              const url = await withTimeout(postReport({
-                categoryUrl: catUrl,
-                title: ttl,
-                content: cnt,
-                tags: ['denúncia'],
-                attachments: dFiles,
-              }), 180000, 'Tempo limite ao tentar publicar no fórum. O navegador travou ou o site bloqueou a automação.');
+              // retry loop to handle transient Cloudflare/timeouts
+              let attempts = 0;
+              const maxAttempts = 3;
+              let lastErr = null;
+              let url = null;
+              while (attempts < maxAttempts) {
+                attempts += 1;
+                try {
+                  url = await withTimeout(postReport({
+                    categoryUrl: catUrl,
+                    title: ttl,
+                    content: cnt,
+                    tags: ['denúncia'],
+                    attachments: dFiles,
+                  }), 180000, 'Tempo limite ao tentar publicar no fórum. O navegador travou ou o site bloqueou a automação.');
+                  break;
+                } catch (err) {
+                  lastErr = err;
+                  console.warn(`[Report] tentativa ${attempts} falhou: ${err.message}`);
+                  // if Cloudflare timeout, wait with backoff and retry
+                  if (/Cloudflare\/verificação|Cloudflare/i.test(err.message) || /tempo limite/i.test(err.message)) {
+                    const waitMs = 5000 * attempts + Math.floor(Math.random() * 2000);
+                    console.log(`[Report] esperando ${waitMs}ms antes de tentar novamente`);
+                    await new Promise((r) => setTimeout(r, waitMs));
+                    continue;
+                  }
+                  // other errors: don't retry
+                  throw err;
+                }
+              }
+              if (!url && lastErr) throw lastErr;
               await btnInteraction.editReply(`Denúncia publicada com sucesso: ${url}`);
               // Excluir mensagens do usuário
               for (const m of uMsgs) {

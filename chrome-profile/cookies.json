@@ -7,5 +7,14 @@
     "secure": true,
     "httpOnly": true,
     "sameSite": "Lax"
+  },
+  {
+    "name": "cf_clearance",
+    "value": "<COLOQUE_SEU_CF_CLEARANCE_AQUI>",
+    "domain": "forum.mush.com.br",
+    "path": "/",
+    "secure": true,
+    "httpOnly": false,
+    "sameSite": "Lax"
   }
 ]
