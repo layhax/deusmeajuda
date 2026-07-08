@@ -86,20 +86,38 @@ async function typeFirst(page, selectors, text) {
   throw new Error(`Nenhum seletor encontrado para digitar: ${selectors.join(', ')}`);
 }
 
-async function waitCloudflare(page, timeout = 60000) {
+async function waitCloudflare(page, timeout = 180000) {
   const start = Date.now();
+  let attempt = 0;
   while (Date.now() - start < timeout) {
+    attempt += 1;
     const text = await page.evaluate(() => document.body.innerText || '').catch(() => '');
     const title = await page.title().catch(() => '');
     const combined = `${title}\n${text}`;
+
+    // If page doesn't show Cloudflare challenge text, consider it passed
     if (!/just a moment|checking your browser|verifica|seguran|cloudflare/i.test(combined)) {
+      // also double-check presence of cf_clearance cookie
+      try {
+        const cookies = await page.cookies();
+        const cf = cookies.find((c) => c.name === 'cf_clearance' && c.domain && c.value);
+        if (cf) {
+          console.log('[Puppeteer] cf_clearance encontrado, seguindo.');
+          return;
+        }
+      } catch (_) {}
+      // no cf_clearance but no obvious challenge text: assume OK
       return;
     }
-    await debugScreenshot(page, 'cloudflare-wait');
-    await sleep(2000);
+
+    // Log progress every few attempts
+    if (attempt % 3 === 0) console.log(`[Puppeteer] aguardando Cloudflare (tentativa ${attempt})`);
+    await debugScreenshot(page, `cloudflare-wait-${attempt}`);
+    await sleep(3000 + Math.floor(Math.random() * 2000));
   }
+
   await debugScreenshot(page, 'cloudflare-timeout');
-  throw new Error('Cloudflare/verificação de segurança não terminou em tempo útil.');
+  throw new Error('Cloudflare/verificação de segurança não terminou em tempo útil. Tente executar com PUPPETEER_HEADLESS=false para resolver manualmente ou adicione `cf_clearance` em chrome-profile/cookies.json.');
 }
 
 async function postReport({ categoryUrl, title, content, tags = [], attachments = [] }) {
