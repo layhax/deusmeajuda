@@ -1,0 +1,11 @@
+[
+  {
+    "name": "express.sid",
+    "value": "s:Cw4GkHrLPbpdjcBnmksPHKTlMSbJ8MZK.R/9iqcsYh6XDTYO1Q5GvIt5YbCyV91D6Ay6jhsh0CW8",
+    "domain": "forum.mush.com.br",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "Lax"
+  }
+]
